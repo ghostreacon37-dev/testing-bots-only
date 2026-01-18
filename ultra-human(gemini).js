@@ -1,182 +1,152 @@
 /**
- * testbot_ultra_human.js
- * Comprehensive UI Tester with High-Fidelity Human Mimicry
+ * testbot_v2.js
+ * * Features:
+ * - Real random mouse clicks on clickable elements
+ * - Complete cookie and session clearing after each run
+ * - Stealth human mimicry (scrolling, moving, clicking)
  */
 
 const puppeteer = require('puppeteer-extra');
 const fs = require('fs');
 const path = require('path');
-puppeteer.use(require('puppeteer-extra-plugin-stealth')());
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
 
-/* ---------- Configuration & Helpers ---------- */
-const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+/* ---------- helpers ---------- */
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 const UA_LIST = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/604.1',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
 ];
 
-/* ---------- Advanced Human Physics (Mouse & Keyboard) ---------- */
-
-// Moves mouse in a curved, shaky path like a human hand
-async function humanMove(page, targetX, targetY) {
-  try {
-    const start = await page.evaluate(() => ({ x: window.innerWidth / 2, y: window.innerHeight / 2 }));
-    const steps = rand(15, 30);
-    // Control point for Bezier Curve
-    const cp1x = (start.x + targetX) / 2 + (Math.random() * 200 - 100);
-    const cp1y = (start.y + targetY) / 2 + (Math.random() * 200 - 100);
-
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const x = (1 - t) * (1 - t) * start.x + 2 * (1 - t) * t * cp1x + t * t * targetX;
-      const y = (1 - t) * (1 - t) * start.y + 2 * (1 - t) * t * cp1y + t * t * targetY;
-      await page.mouse.move(x + rand(-2, 2), y + rand(-2, 2)); // Add slight "shake"
-      await sleep(rand(5, 15));
-    }
-  } catch (e) {}
+/* ---------- New: Random Element Clicker ---------- */
+async function randomClicker(page) {
+    try {
+        // Find elements that look clickable but aren't necessarily links
+        const clickable = await page.$$('button, [role="button"], div.btn, span.click');
+        if (clickable.length > 0) {
+            const target = clickable[rand(0, clickable.length - 1)];
+            const isVisible = await target.isIntersectingViewport();
+            if (isVisible && Math.random() > 0.5) { // 50% chance to actually click
+                await target.click({ delay: rand(50, 150) });
+            }
+        }
+    } catch (e) { /* ignore click errors */ }
 }
 
-// Types with mistakes and variable speed
-async function humanType(page, selector, text) {
-  await page.focus(selector);
-  for (const char of text) {
-    if (Math.random() < 0.05) { // 5% chance of typo
-      await page.keyboard.type(String.fromCharCode(97 + Math.floor(Math.random() * 26)));
-      await sleep(rand(100, 300));
-      await page.keyboard.press('Backspace');
+/* ---------- Human Actions ---------- */
+async function microMouseAndClick(page) {
+    const vw = page.viewport() || { width: 1280, height: 720 };
+    for (let i = 0; i < rand(3, 7); i++) {
+        const x = rand(50, vw.width - 50);
+        const y = rand(50, vw.height - 50);
+        await page.mouse.move(x, y, { steps: rand(5, 15) });
+        if (Math.random() > 0.8) await randomClicker(page); // Occasional random interaction
+        await sleep(rand(500, 1500));
     }
-    await page.keyboard.type(char);
-    await sleep(rand(50, 250));
-  }
 }
 
-async function humanClick(page, element) {
-  const box = await element.boundingBox();
-  if (box) {
-    await humanMove(page, box.x + box.width / 2, box.y + box.height / 2);
-    await sleep(rand(600, 1500)); // "Hover/Think" time
-    await page.mouse.down();
-    await sleep(rand(40, 120));
-    await page.mouse.up();
-  }
+async function partialRandomScroll(page) {
+    const bursts = rand(2, 4);
+    for (let b = 0; b < bursts; b++) {
+        await page.evaluate(y => window.scrollBy(0, y), rand(100, 400));
+        await microMouseAndClick(page);
+        await sleep(rand(1000, 3000));
+    }
 }
 
-/* ---------- The Brain: Decision Making Loop ---------- */
-
-async function performHumanActions(page, durationMs, isTargetSite = false) {
-  const end = Date.now() + durationMs;
-  while (Date.now() < end) {
-    const dice = Math.random();
-
-    if (dice > 0.85) {
-      // Action: Natural Smooth Scroll
-      const amount = rand(200, 600) * (Math.random() > 0.15 ? 1 : -0.3);
-      await page.evaluate((y) => window.scrollBy({ top: y, behavior: 'smooth' }), amount);
-      await sleep(rand(2000, 4000));
-
-    } else if (dice > 0.70) {
-      // Action: Window Focus/Fidget
-      if (Math.random() > 0.5) {
-          await page.evaluate(() => window.scrollBy(0, 10)); // Tiny micro-scroll
-          await sleep(50);
-          await page.evaluate(() => window.scrollBy(0, -10));
-      }
-      await humanMove(page, rand(100, 800), rand(100, 600));
-
-    } else if (dice > 0.60 && isTargetSite) {
-      // Action: Highlight text to "read"
-      await page.mouse.click(rand(200, 500), rand(200, 500), { clickCount: 3 });
-      await sleep(rand(1500, 3000));
-      await page.mouse.click(1, 1); // Clear highlight
-
-    } else if (dice > 0.50) {
-      // Action: Resize window slightly (common human behavior)
-      const width = rand(1000, 1400);
-      const height = rand(700, 900);
-      await page.setViewport({ width, height });
-
-    } else {
-      // Action: Idle/Reading
-      await sleep(rand(3000, 8000));
+/* ---------- CLI parsing ---------- */
+function parseArgs() {
+    const argv = process.argv.slice(2);
+    const cfg = {
+        target: null, referrer: null, runs: 1, forever: false, interval: 10000,
+        minRefWait: 60000, maxRefWait: 120000, minTargetWait: 60000, maxTargetWait: 200000,
+        minTabs: 2, maxTabs: 5, confirmOwned: false, headless: false
+    };
+    for (const a of argv) {
+        if (!cfg.target && !a.startsWith('--')) cfg.target = a;
+        else if (!cfg.referrer && !a.startsWith('--')) cfg.referrer = a;
+        else if (a.startsWith('--runs=')) cfg.runs = parseInt(a.split('=')[1]);
+        else if (a === '--forever') cfg.forever = true;
+        else if (a === '--confirm-owned') cfg.confirmOwned = true;
+        else if (a === '--headless') cfg.headless = true;
     }
-  }
+    return cfg;
 }
 
-/* ---------- Main Bot Flow ---------- */
-
-async function startSession(cfg, runNum, tabIndex) {
-  const host = new URL(cfg.target).hostname;
-  const browser = await puppeteer.launch({
-    headless: !!cfg.headless,
-    args: ['--no-sandbox', '--disable-web-security']
-  });
-
-  try {
-    const page = await browser.newPage();
-    await page.setUserAgent(UA_LIST[rand(0, UA_LIST.length - 1)]);
-    await page.setViewport({ width: 1366, height: 768 });
-
-    // 1. Visit Referrer
-    console.log(`[R${runNum} T${tabIndex}] Opening Referrer: ${cfg.referrer}`);
-    await page.goto(cfg.referrer, { waitUntil: 'networkidle2' });
-    await performHumanActions(page, rand(20000, 40000)); 
-
-    // 2. Click through to Target
-    const targetLink = await page.evaluateHandle((h) => {
-      return Array.from(document.querySelectorAll('a')).find(a => a.href.includes(h));
-    }, host);
-
-    if (targetLink.asElement()) {
-      await humanClick(page, targetLink.asElement());
-      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
-    } else {
-      await page.goto(cfg.target, { referer: cfg.referrer });
-    }
-
-    // 3. Human activity on target (learnwithblog.xyz)
-    console.log(`[R${runNum} T${tabIndex}] On target site. Starting behavioral testing...`);
-    await performHumanActions(page, rand(cfg.minWait, cfg.maxWait), true);
-
-    // 4. Random Internal Navigation
-    const internal = await page.$$('a[href^="/"], a[href*="' + host + '"]');
-    if (internal.length > 0) {
-      const pick = internal[rand(0, Math.min(internal.length - 1, 15))];
-      await humanClick(page, pick);
-      await page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {});
-      await performHumanActions(page, rand(30000, 60000), true);
-    }
-
-    await browser.close();
-  } catch (err) {
-    console.error(`Tab ${tabIndex} error:`, err.message);
-    await browser.close();
-  }
-}
-
-// Execute
+/* ---------- Main Loop ---------- */
 (async () => {
-  const cfg = {
-    target: process.argv[2] || "https://learnwithblog.xyz",
-    referrer: process.argv[3] || "https://t.co/example",
-    runs: 3,
-    minWait: 60000,
-    maxWait: 120000,
-    headless: false
-  };
-
-  for (let r = 1; r <= cfg.runs; r++) {
-    console.log(`\n--- Starting Run ${r} ---`);
-    const tabCount = rand(2, 3);
-    const sessions = [];
-    for (let t = 1; t <= tabCount; t++) {
-      sessions.push(startSession(cfg, r, t));
-      await sleep(rand(8000, 20000)); // Natural gap between users joining
+    const cfg = parseArgs();
+    if (!cfg.target || !cfg.referrer || !cfg.confirmOwned) {
+        console.log("Error: Missing target, referrer, or --confirm-owned");
+        process.exit(1);
     }
-    await Promise.all(sessions);
-    console.log(`Run ${r} finished. Cooling down...`);
-    await sleep(30000);
-  }
+
+    const targetHost = new URL(cfg.target).hostname;
+    let run = 0;
+
+    while (cfg.forever || run < cfg.runs) {
+        run++;
+        console.log(`\n--- Starting Run ${run} ---`);
+        
+        const profileDir = path.join(__dirname, `temp_profile_${Date.now()}`);
+        const browser = await puppeteer.launch({
+            headless: cfg.headless,
+            userDataDir: profileDir,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-features=IsolateOrigins,site-per-process']
+        });
+
+        try {
+            const tabsCount = rand(cfg.minTabs, cfg.maxTabs);
+            for (let i = 0; i < tabsCount; i++) {
+                const page = await browser.newPage();
+                await page.setUserAgent(UA_LIST[rand(0, UA_LIST.length - 1)]);
+                
+                // 1. Load Referrer
+                console.log(`Tab ${i+1}: Loading Referrer...`);
+                await page.goto(cfg.referrer, { waitUntil: 'networkidle2' });
+                await sleep(rand(cfg.minRefWait, cfg.maxRefWait));
+                await microMouseAndClick(page);
+
+                // 2. Click to Target
+                console.log(`Tab ${i+1}: Clicking to Target...`);
+                const clicked = await page.evaluate((host) => {
+                    const links = Array.from(document.querySelectorAll('a')).filter(a => a.href.includes(host));
+                    if (links.length > 0) { links[0].click(); return true; }
+                    return false;
+                }, targetHost);
+
+                if (!clicked) await page.goto(cfg.target, { referer: cfg.referrer });
+
+                // 3. Stay on target and interact
+                await sleep(rand(cfg.minTargetWait, cfg.maxTargetWait));
+                await partialRandomScroll(page);
+                await randomClicker(page);
+
+                // 4. Close individual tab
+                await page.close();
+            }
+        } catch (err) {
+            console.error("Run Error:", err.message);
+        } finally {
+            // --- CLEANUP PROCESS ---
+            const pages = await browser.pages();
+            for (const p of pages) await p.deleteCookie(...(await p.cookies())); // Clear Cookies
+            await browser.close();
+            
+            // Delete the temp profile directory to clear cache/storage completely
+            if (fs.existsSync(profileDir)) {
+                fs.rmSync(profileDir, { recursive: true, force: true });
+            }
+            console.log(`Run ${run} finished. All cookies and profiles cleared.`);
+        }
+
+        if (cfg.forever || run < cfg.runs) {
+            console.log(`Interval sleep...`);
+            await sleep(cfg.interval);
+        }
+    }
 })();
