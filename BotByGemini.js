@@ -2,15 +2,18 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
+// 1. DIVERSE DEVICE DATABASE (Android + Desktop)
 const PROFILES = [
     { name: 'Win10-Chrome', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'Win32', cores: 8, mem: 16, w: 1920, h: 1080, mobile: false },
     { name: 'Android-Pixel7', ua: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36', platform: 'Linux armv8l', cores: 8, mem: 8, w: 412, h: 915, mobile: true },
     { name: 'MacOS-Safari', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15', platform: 'MacIntel', cores: 8, mem: 16, w: 1440, h: 900, mobile: false },
-    { name: 'Android-SamsungS23', ua: 'Mozilla/5.0 (Linux; Android 13; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36', platform: 'Linux armv8l', cores: 8, mem: 12, w: 360, h: 800, mobile: true }
+    { name: 'Android-SamsungS23', ua: 'Mozilla/5.0 (Linux; Android 13; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36', platform: 'Linux armv8l', cores: 8, mem: 12, w: 360, h: 800, mobile: true },
+    { name: 'Win11-Edge', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0', platform: 'Win32', cores: 12, mem: 32, w: 1920, h: 1080, mobile: false }
 ];
 
 const hWait = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
 
+// Smooth Bezier Curve Mouse Movement for Desktop
 async function humanMove(page, targetPoint) {
     const start = { x: hWait(0, 500), y: hWait(0, 500) };
     const steps = hWait(15, 35);
@@ -26,8 +29,9 @@ async function humanMove(page, targetPoint) {
 async function simulateHumanSession(browser, profile, targetDomain, referrer, tabId) {
     const context = await browser.createBrowserContext();
     const page = await context.newPage();
-    await page.setUserAgent(profile.ua);
     
+    // Set Identity & Fingerprint
+    await page.setUserAgent(profile.ua);
     if (profile.mobile) {
         await page.setViewport({ width: profile.w, height: profile.h, isMobile: true, hasTouch: true });
     } else {
@@ -42,9 +46,11 @@ async function simulateHumanSession(browser, profile, targetDomain, referrer, ta
     }, profile);
 
     try {
-        // --- X.com PART (Unchanged as requested) ---
+        // --- PHASE 1: X.COM (The Bridge) ---
+        console.log(`[Tab ${tabId}] Profile: ${profile.name}. Navigating to X.`);
         await page.goto(referrer, { waitUntil: 'networkidle2', timeout: 90000 });
-        await new Promise(r => setTimeout(r, hWait(60000, 120000)));
+        
+        await new Promise(r => setTimeout(r, hWait(60000, 120000))); // 1-2 min wait on X
         await page.keyboard.press('Escape');
 
         const link = await page.evaluateHandle((domain) => {
@@ -60,45 +66,79 @@ async function simulateHumanSession(browser, profile, targetDomain, referrer, ta
             }
         }
 
-        // --- Learnwithblog.xyz PART (FIXED CLICKING) ---
+        // --- PHASE 2: LEARNWITHBLOG.XYZ (The Chaos Engagement) ---
+        // 1. Variable Load Wait (1-37 seconds)
         const loadWait = hWait(1000, 37000);
-        console.log(`[Tab ${tabId}] Landed on site. Loading for ${loadWait/1000}s...`);
+        console.log(`[Tab ${tabId}] Arrived at Blog. Waiting ${loadWait/1000}s to load content.`);
         await new Promise(r => setTimeout(r, loadWait));
 
-        const sessionEnd = Date.now() + hWait(0, 570000); 
-        
+        // 2. Engagement Timer (0-570 seconds)
+        const engagementLimit = hWait(0, 570000); 
+        const sessionEnd = Date.now() + engagementLimit;
+        console.log(`[Tab ${tabId}] Engagement session started: ${Math.floor(engagementLimit/1000)} seconds.`);
+
+        if (engagementLimit === 0) {
+            console.log(`[Tab ${tabId}] Random skip (Exit immediately).`);
+        }
+
         while (Date.now() < sessionEnd) {
             const dice = Math.random();
 
-            if (dice < 0.4) {
-                // 1. RANDOM SCROLL
+            if (dice < 0.3) {
+                // ACTION: Random Scrolling
+                console.log(`[Tab ${tabId}] Scrolling...`);
                 await page.mouse.wheel({ deltaY: hWait(-300, 800) });
             } 
-            else {
-                // 2. FIXED CLICK: Find an actual element to click
-                const clickable = await page.$$('p, h1, h2, a, img, span, div');
-                if (clickable.length > 0) {
-                    const el = clickable[hWait(0, clickable.length - 1)];
+            else if (dice < 0.6) {
+                // ACTION: Click REAL elements (Chaos clicking on site)
+                const elements = await page.$$('p, h1, h2, img, a, span, div, li');
+                if (elements.length > 0) {
+                    const el = elements[hWait(0, elements.length - 1)];
                     const b = await el.boundingBox();
-                    
-                    // Only click if it's actually on the screen
-                    if (b && b.x > 0 && b.y > 0 && b.width > 0) {
-                        console.log(`[Tab ${tabId}] Human click on element at ${Math.round(b.x)}, ${Math.round(b.y)}`);
+                    if (b && b.width > 0 && b.height > 0) {
+                        console.log(`[Tab ${tabId}] Random interaction at ${Math.round(b.x)}, ${Math.round(b.y)}`);
                         if (!profile.mobile) await humanMove(page, { x: b.x + b.width/2, y: b.y + b.height/2 });
-                        await page.mouse.click(b.x + b.width/2, b.y + b.height/2, { delay: hWait(50, 200) });
+                        await page.mouse.click(b.x + b.width/2, b.y + b.height/2, { delay: hWait(80, 200) });
+                        // Brief pause to allow any clicked links/popups to process
+                        await new Promise(r => setTimeout(r, hWait(2000, 5000)));
+                    }
+                }
+            } 
+            else if (!profile.mobile && dice < 0.8) {
+                // ACTION: Real Mouse Hover (Desktop Only)
+                const hx = hWait(0, profile.w);
+                const hy = hWait(0, profile.h);
+                await humanMove(page, { x: hx, y: hy });
+            }
+            else if (dice < 0.9) {
+                // ACTION: Highlight text (Reading behavior)
+                const paras = await page.$$('p');
+                if (paras.length > 0) {
+                    const p = paras[hWait(0, paras.length - 1)];
+                    const pb = await p.boundingBox();
+                    if (pb) {
+                        await page.mouse.move(pb.x, pb.y);
+                        await page.mouse.down();
+                        await page.mouse.move(pb.x + hWait(40, 180), pb.y, { steps: 10 });
+                        await page.mouse.up();
                     }
                 }
             }
-            
-            // Random Wait between actions
-            await new Promise(r => setTimeout(r, hWait(5000, 20000)));
+            else {
+                // ACTION: Reading Pause (Idle)
+                console.log(`[Tab ${tabId}] Thinking/Reading...`);
+                await new Promise(r => setTimeout(r, hWait(10000, 30000)));
+            }
+
+            // Staggered delay between different chaos actions
+            await new Promise(r => setTimeout(r, hWait(3000, 12000)));
         }
 
     } catch (err) {
-        console.log(`[Tab ${tabId}] Stopped: ${err.message}`);
+        console.log(`[Tab ${tabId}] Error: ${err.message}`);
     } finally {
         await context.close();
-        console.log(`[Tab ${tabId}] Wiped & Closed.`);
+        console.log(`[Tab ${tabId}] Browser Data Purged.`);
     }
 }
 
@@ -115,11 +155,13 @@ async function start() {
     const active = [];
     for (let i = 1; i <= numTabs; i++) {
         const profile = PROFILES[hWait(0, PROFILES.length - 1)];
-        await new Promise(r => setTimeout(r, hWait(2000, 10000)));
+        // Staggered Arrival
+        await new Promise(r => setTimeout(r, hWait(2000, 15000)));
         active.push(simulateHumanSession(browser, profile, TARGET, REFERRER, i));
     }
     await Promise.all(active);
     await browser.close();
+    console.log("🏁 All tasks complete.");
 }
 
 start();
