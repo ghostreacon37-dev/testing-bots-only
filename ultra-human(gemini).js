@@ -2,106 +2,125 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
-/* --- DEVICE & HARDWARE DATABASE --- */
+/** * DEVICE DATABASE 
+ * Each tab mimics a completely different set of hardware specs.
+ */
 const DEVICES = [
-    { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', platform: 'Win32', vendor: 'Google Inc.', cores: [4, 8, 16], mem: [8, 16], w: 1920, h: 1080 },
-    { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36', platform: 'MacIntel', vendor: 'Google Inc.', cores: [8, 10], mem: [8, 16, 32], w: 1440, h: 900 },
-    { ua: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', platform: 'Linux x86_64', vendor: 'Google Inc.', cores: [4, 6], mem: [4, 8], w: 1366, h: 768 }
+    { name: 'Windows-Desktop-HighEnd', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'Win32', cores: 16, mem: 32, w: 1920, h: 1080 },
+    { name: 'Macbook-Air-M2', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', platform: 'MacIntel', cores: 8, mem: 16, w: 1440, h: 900 },
+    { name: 'Dell-XPS-Linux', ua: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'Linux x86_64', cores: 8, mem: 16, w: 1366, h: 768 }
 ];
 
-/* --- BEHAVIORAL MATH --- */
-const hWait = (min, max) => {
-    const u = 1 - Math.random(), v = Math.random();
-    const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-    let res = Math.floor((z / 4 + 0.5) * (max - min) + min);
-    return Math.max(min, Math.min(max, res));
-};
+/* --- UTILITIES --- */
+const hWait = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
 
-// Generates an arc-like path for the mouse to prevent straight lines
+// Moves the mouse in a curved arc rather than a robotic straight line
 async function bezierMove(page, start, end) {
-    const steps = hWait(25, 45);
-    const control = { x: (start.x + end.x) / 2 + (Math.random() - 0.5) * 200, y: (start.y + end.y) / 2 + (Math.random() - 0.5) * 200 };
+    const steps = hWait(30, 60);
+    const control = { 
+        x: (start.x + end.x) / 2 + (Math.random() - 0.5) * 400, 
+        y: (start.y + end.y) / 2 + (Math.random() - 0.5) * 400 
+    };
     for (let i = 0; i <= steps; i++) {
         const t = i / steps;
         const x = (1 - t) ** 2 * start.x + 2 * (1 - t) * t * control.x + t ** 2 * end.x;
         const y = (1 - t) ** 2 * start.y + 2 * (1 - t) * t * control.y + t ** 2 * end.y;
         await page.mouse.move(x, y);
-        if (i % 8 === 0) await new Promise(r => setTimeout(r, hWait(5, 20)));
+        if (i % 10 === 0) await new Promise(r => setTimeout(r, hWait(2, 8)));
     }
 }
 
-async function startHumanSession(target, referrer) {
+async function startUltimateSession() {
+    const TARGET_URL = "https://learnwithblog.xyz";
+    const REFERRER_URL = "https://x.com/GhostReacondev/status/2013213212175724818?s=20";
+    
+    console.log("🚀 Initializing Stealth Engine...");
     const browser = await puppeteer.launch({
-        headless: false, // Visible browsing is harder to detect than headless
-        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled']
+        headless: "new", 
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
     });
 
-    const runCount = Math.floor(Math.random() * 8) + 2; // 2-9 tabs
+    const totalTabs = hWait(2, 9);
+    console.log(`📊 Run started: Processing ${totalTabs} randomized tabs.`);
 
-    for (let i = 0; i < runCount; i++) {
-        const dev = DEVICES[Math.floor(Math.random() * DEVICES.length)];
-        const context = await browser.createBrowserContext();
+    for (let i = 1; i <= totalTabs; i++) {
+        const dev = DEVICES[hWait(0, DEVICES.length - 1)];
+        const context = await browser.createBrowserContext(); // Full data isolation
         const page = await context.newPage();
 
-        // 1. SPOOF HARDWARE FINGERPRINT
+        // 1. SPOOFING HARDWARE & WEBDRIVER
         await page.setUserAgent(dev.ua);
-        await page.setViewport({ width: dev.w, height: dev.h, deviceScaleFactor: 1 });
+        await page.setViewport({ width: dev.w, height: dev.h });
         await page.evaluateOnNewDocument((d) => {
             Object.defineProperty(navigator, 'platform', { get: () => d.platform });
-            Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => d.cores[Math.floor(Math.random() * d.cores.length)] });
-            Object.defineProperty(navigator, 'deviceMemory', { get: () => d.mem[Math.floor(Math.random() * d.mem.length)] });
-            // Remove the webdriver bridge
+            Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => d.cores });
+            Object.defineProperty(navigator, 'deviceMemory', { get: () => d.mem });
             delete navigator.__proto__.webdriver;
         }, dev);
 
         try {
-            // 2. NAVIGATE TO REFERRER
-            await page.goto(referrer, { waitUntil: 'networkidle2' });
-            await new Promise(r => setTimeout(r, hWait(4000, 12000)));
+            console.log(`Tab ${i}: [${dev.name}] Navigating to X...`);
+            await page.goto(REFERRER_URL, { waitUntil: 'networkidle2', timeout: 60000 });
+            await new Promise(r => setTimeout(r, hWait(6000, 12000)));
 
-            // 3. HUMAN CLICK ON TARGET
+            // 2. FIND & CLICK LINK
             const linkSelector = 'a[href*="learnwithblog.xyz"]';
-            await page.waitForSelector(linkSelector);
             const link = await page.$(linkSelector);
-            const box = await link.boundingBox();
-            
-            // Move from current position to a random point inside the link
-            await bezierMove(page, {x: 100, y: 100}, {x: box.x + Math.random() * box.width, y: box.y + Math.random() * box.height});
-            
-            await page.mouse.down();
-            await new Promise(r => setTimeout(r, hWait(60, 180))); // Realistic click-hold
-            await page.mouse.up();
 
-            // 4. STAY & INTERACT (1s to 8min)
-            const exitTime = Date.now() + hWait(1000, 480000);
-            while (Date.now() < exitTime) {
-                const action = Math.random();
-                if (action < 0.5) {
-                    await page.mouse.wheel({ deltaY: hWait(150, 450) }); // Reading scroll
-                } else if (action < 0.7) {
-                    // Hover over a random element
-                    const elements = await page.$$('p, h2, li');
-                    if (elements.length > 0) {
-                        const elBox = await elements[Math.floor(Math.random() * elements.length)].boundingBox();
-                        if (elBox) await page.mouse.move(elBox.x, elBox.y, { steps: 10 });
-                    }
-                } else {
-                    // Click a random internal link (Stay on site)
-                    const internal = await page.$$('a[href^="/"]');
-                    if (internal.length > 0) await internal[Math.floor(Math.random() * internal.length)].click();
+            if (link) {
+                const box = await link.boundingBox();
+                if (box) {
+                    await bezierMove(page, {x: hWait(0, 200), y: hWait(0, 200)}, {x: box.x + box.width/2, y: box.y + box.height/2});
+                    await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { delay: hWait(80, 200) });
+                    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {});
                 }
-                await new Promise(r => setTimeout(r, hWait(8000, 25000))); // Pause as if reading
             }
 
-        } catch (e) {
-            console.log(`Tab ${i} skipped: ${e.message}`);
+            // 3. FAIL-SAFE: If X blocked the click or link was missing
+            const currentUrl = await page.url();
+            if (!currentUrl.includes("learnwithblog.xyz")) {
+                console.log(`Tab ${i}: Click blocked. Using Stealth Referer Bypass...`);
+                await page.goto(TARGET_URL, { waitUntil: 'networkidle2', referer: REFERRER_URL });
+            }
+
+            console.log(`Tab ${i}: Landed on ${await page.url()}`);
+
+            // 4. HUMAN ENGAGEMENT LOOP (1s to 8min)
+            const sessionEnd = Date.now() + hWait(1000, 480000); 
+            while (Date.now() < sessionEnd) {
+                const action = Math.random();
+                if (action < 0.4) {
+                    await page.mouse.wheel({ deltaY: hWait(300, 700) }); // Reading scroll
+                } else if (action < 0.6) {
+                    // Accidental "Noise" Click on non-link
+                    const x = hWait(50, dev.w - 50);
+                    const y = hWait(50, dev.h - 50);
+                    await page.mouse.click(x, y, { delay: hWait(50, 150) });
+                } else if (action < 0.8) {
+                    // Internal Navigation Click
+                    const internal = await page.$$('a[href^="/"], a[href*="learnwithblog.xyz"]');
+                    if (internal.length > 0) {
+                        const randomLink = internal[hWait(0, internal.length - 1)];
+                        await randomLink.click().catch(() => {});
+                        await new Promise(r => setTimeout(r, hWait(4000, 8000))); 
+                    }
+                } else {
+                    await page.mouse.move(hWait(0, dev.w), hWait(0, dev.h), { steps: 10 });
+                }
+                await new Promise(r => setTimeout(r, hWait(10000, 35000))); 
+            }
+
+            console.log(`Tab ${i}: Session complete. Wiping data.`);
+
+        } catch (err) {
+            console.error(`Tab ${i} Failed: ${err.message}`);
         } finally {
-            // 5. THE ULTIMATE WIPE
-            await context.close(); // Clars cookies, cache, local storage, indexedDB instantly
+            await context.close(); // Clears all cookies/history for this tab
         }
     }
+
     await browser.close();
+    console.log("✅ All sessions finished. Browser closed.");
 }
 
-// EXECUTE
-startHumanSession("https://learnwithblog.xyz", "https://x.com/GhostReacondev/status/2013213212175724818?s=20");
+startUltimateSession();
