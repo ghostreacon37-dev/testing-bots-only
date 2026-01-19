@@ -23,26 +23,25 @@ async function bezierMove(page, start, end) {
 }
 
 async function runSingleTab(browser, dev, targetDomain, referrer, tabIndex) {
-    // Create a fresh "Incognito" context for every single tab
     const context = await browser.createBrowserContext();
     const page = await context.newPage();
+    
+    // Assign a "Personality" to this specific tab
+    const personalities = ['Reader', 'Clicker', 'Idle'];
+    const personality = personalities[hWait(0, 2)];
     
     await page.setUserAgent(dev.ua);
     await page.setViewport({ width: dev.w, height: dev.h });
 
     try {
-        console.log(`[Tab ${tabIndex}] Navigating to X: ${referrer}`);
-        await page.goto(referrer, { waitUntil: 'networkidle2', timeout: 90000 });
+        console.log(`[Tab ${tabIndex}] Device: ${dev.name} | Personality: ${personality}`);
         
-        // Wait for X to load and clear any "Login" popups
-        await new Promise(r => setTimeout(r, hWait(7000, 12000)));
+        // 1. Go to X.com
+        await page.goto(referrer, { waitUntil: 'networkidle2', timeout: 90000 });
+        await new Promise(r => setTimeout(r, hWait(5000, 10000)));
         await page.keyboard.press('Escape');
 
-        // Scroll a bit so the link is visible in the tweet
-        await page.mouse.wheel({ deltaY: hWait(400, 800) });
-        await new Promise(r => setTimeout(r, 2000));
-
-        // Locate the link specifically by looking for the domain string in the href
+        // 2. Locate and Click Link
         const linkSelector = `a[href*="${targetDomain}"]`;
         await page.waitForSelector(linkSelector, { timeout: 15000 });
         const link = await page.$(linkSelector);
@@ -50,47 +49,56 @@ async function runSingleTab(browser, dev, targetDomain, referrer, tabIndex) {
         if (link) {
             const box = await link.boundingBox();
             if (box) {
-                console.log(`[Tab ${tabIndex}] Link found. Moving mouse humanly...`);
                 await bezierMove(page, {x: hWait(0, 300), y: hWait(0, 300)}, {x: box.x + box.width/2, y: box.y + box.height/2});
                 await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { delay: hWait(100, 300) });
-                
-                // Wait for navigation to our site
-                await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => console.log("Nav timeout - proceeding anyway"));
+                await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
             }
-        } else {
-            throw new Error("Link not found on X page.");
         }
 
-        // --- Human Engagement Loop ---
-        console.log(`[Tab ${tabIndex}] Landing successful. Starting 1-8 minute stay...`);
-        const sessionEnd = Date.now() + hWait(60000, 480000); // 1 min to 8 mins
-        
+        // 3. PERSONALIZED ENGAGEMENT LOOP
+        const sessionEnd = Date.now() + hWait(60000, 480000); 
+        console.log(`[Tab ${tabIndex}] Session active for ${Math.round((sessionEnd - Date.now())/60000)} minutes...`);
+
         while (Date.now() < sessionEnd) {
             const action = Math.random();
-            if (action < 0.4) {
-                await page.mouse.wheel({ deltaY: hWait(200, 500) }); // Normal scroll
-            } else if (action < 0.7) {
-                // Random Noise Click
-                await page.mouse.click(hWait(100, dev.w - 100), hWait(100, dev.h - 100), { delay: hWait(50, 150) });
-            } else {
-                // Internal navigation to keep session alive
-                const internalLinks = await page.$$(`a[href*="${targetDomain}"]`);
-                if (internalLinks.length > 0) {
-                    await internalLinks[hWait(0, internalLinks.length - 1)].click().catch(() => {});
-                    await new Promise(r => setTimeout(r, 5000));
+
+            if (personality === 'Reader') {
+                // Focus: Scrolling and small mouse movements
+                if (action < 0.7) {
+                    await page.mouse.wheel({ deltaY: hWait(150, 400) });
+                } else {
+                    await page.mouse.move(hWait(100, 500), hWait(100, 500), { steps: 20 });
                 }
+                await new Promise(r => setTimeout(r, hWait(15000, 40000))); // Long pauses for reading
+            } 
+            
+            else if (personality === 'Clicker') {
+                // Focus: Clicking internal links and background noise
+                if (action < 0.5) {
+                    const internal = await page.$$(`a[href*="${targetDomain}"]`);
+                    if (internal.length > 0) {
+                        await internal[hWait(0, internal.length - 1)].click().catch(() => {});
+                        await new Promise(r => setTimeout(r, hWait(5000, 10000)));
+                    }
+                } else {
+                    await page.mouse.click(hWait(0, dev.w), hWait(0, dev.h), { delay: hWait(50, 150) });
+                }
+                await new Promise(r => setTimeout(r, hWait(8000, 20000))); // Frequent actions
+            } 
+            
+            else if (personality === 'Idle') {
+                // Focus: Doing nothing (Waiting)
+                console.log(`[Tab ${tabIndex}] User is idling (reading long content)...`);
+                await new Promise(r => setTimeout(r, hWait(40000, 90000))); // Huge wait times
+                await page.mouse.wheel({ deltaY: hWait(50, 150) }); // Tiny scroll to show "alive"
             }
-            await new Promise(r => setTimeout(r, hWait(15000, 35000)));
         }
 
     } catch (err) {
         console.error(`[Tab ${tabIndex}] Error: ${err.message}`);
-        // Fail-safe jump if X blocked us
-        console.log(`[Tab ${tabIndex}] Attempting Fail-safe Jump to target...`);
-        await page.goto(`https://${targetDomain}`, { referer: referrer, waitUntil: 'networkidle2' }).catch(() => {});
     } finally {
-        console.log(`[Tab ${tabIndex}] Session complete. Closing context.`);
         await context.close();
+        console.log(`[Tab ${tabIndex}] Data wiped and tab closed.`);
     }
 }
 
@@ -98,33 +106,19 @@ async function startSession() {
     const TARGET = "learnwithblog.xyz";
     const REFERRER = "https://x.com/GhostReacondev/status/2013213212175724818?s=20";
     
-    // Launch browser with headless: false so you can see it working!
     const browser = await puppeteer.launch({
-        headless: false, 
-        args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox', 
-            '--disable-blink-features=AutomationControlled',
-            '--window-size=1920,1080'
-        ]
+        headless: false, // Set to "new" for background run
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
     });
 
     const numTabs = hWait(2, 9);
-    console.log(`🚀 Script started. Will run ${numTabs} tabs.`);
-
     for (let i = 1; i <= numTabs; i++) {
         const dev = DEVICES[hWait(0, DEVICES.length - 1)];
         await runSingleTab(browser, dev, TARGET, REFERRER, i);
-        
-        // Wait 5-15 seconds before starting the next person's session
-        if (i < numTabs) {
-            console.log(`Waiting for next user session...`);
-            await new Promise(r => setTimeout(r, hWait(5000, 15000)));
-        }
+        if (i < numTabs) await new Promise(r => setTimeout(r, hWait(5000, 15000)));
     }
 
     await browser.close();
-    console.log("✅ All tasks complete.");
 }
 
 startSession();
