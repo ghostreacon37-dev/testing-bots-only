@@ -11,6 +11,26 @@ const PROFILES = [
 
 const hWait = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
 
+// PHYSICAL CLICK ENGINE (Scrolls, Moves, then Clicks)
+async function physicalClick(page, element, profile) {
+    if (!element) return false;
+    try {
+        await element.evaluate(el => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+        await new Promise(r => setTimeout(r, hWait(2000, 4000)));
+        const box = await element.boundingBox();
+        if (box && box.width > 0) {
+            const cx = box.x + box.width / 2;
+            const cy = box.y + box.height / 2;
+            if (!profile.mobile) {
+                await page.mouse.move(cx, cy, { steps: hWait(15, 25) });
+            }
+            await page.mouse.click(cx, cy, { delay: hWait(100, 350) });
+            return true;
+        }
+    } catch (e) { return false; }
+    return false;
+}
+
 async function simulateHumanSession(browser, profile, targetDomain, referrer, tabId) {
     const context = await browser.createBrowserContext();
     const page = await context.newPage();
@@ -27,75 +47,81 @@ async function simulateHumanSession(browser, profile, targetDomain, referrer, ta
     }, profile);
 
     try {
-        // --- PHASE 1: X.COM (Untouched) ---
-        console.log(`[Tab ${tabId}] Going to X...`);
-        await page.goto(referrer, { waitUntil: 'networkidle2', timeout: 90000 });
-        await new Promise(r => setTimeout(r, hWait(60000, 120000))); 
+        // --- PHASE 1: X.COM (Friend's Logic + Real Click) ---
+        console.log(`[Tab ${tabId}] Starting: ${profile.name}`);
+        await page.goto(referrer, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await new Promise(r => setTimeout(r, hWait(60000, 120000)));
         await page.keyboard.press('Escape');
 
-        const link = await page.evaluateHandle((domain) => {
-            return Array.from(document.querySelectorAll('a')).find(a => a.innerText.toLowerCase().includes(domain.toLowerCase()) || a.href.toLowerCase().includes(domain.toLowerCase()));
+        const xLink = await page.evaluateHandle((domain) => {
+            const anchors = Array.from(document.querySelectorAll('a[href]'));
+            return anchors.find(a => a.href && a.href.includes(domain));
         }, targetDomain).then(h => h.asElement());
 
-        if (link) {
-            await link.scrollIntoView();
-            const box = await link.boundingBox();
-            if (box) {
-                await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { delay: hWait(150, 400) });
-                await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }).catch(() => {});
-            }
+        if (xLink) {
+            await physicalClick(page, xLink, profile);
+            await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }).catch(() => {});
         }
 
-        // --- PHASE 2: LEARNWITHBLOG.XYZ (FIXED CLICKING ENGINE) ---
-        console.log(`[Tab ${tabId}] Entered Target Site. Waiting for content...`);
-        await new Promise(r => setTimeout(r, hWait(5000, 37000)));
-
-        const sessionEnd = Date.now() + hWait(10000, 570000); 
+        // --- PHASE 2: LEARNWITHBLOG.XYZ (Random Human Behavior) ---
+        await new Promise(r => setTimeout(r, hWait(5000, 20000)));
+        
+        const sessionEnd = Date.now() + hWait(120000, 500000); // 2 to 8 mins
+        console.log(`[Tab ${tabId}] Blog session started. Active interactions enabled.`);
 
         while (Date.now() < sessionEnd) {
-            // Force browser to "wake up" and find elements
-            const elements = await page.$$('a, button, h1, h2, p, img');
-            
-            if (elements.length > 0) {
-                // Pick a random element
-                const target = elements[hWait(0, elements.length - 1)];
-                
-                // 1. Scroll it into view (crucial for clicking)
-                await target.evaluate(el => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
-                await new Promise(r => setTimeout(r, hWait(2000, 5000)));
+            const actionDice = Math.random();
 
-                // 2. Get fresh coordinates after scrolling
-                const box = await target.boundingBox();
-                
-                if (box && box.width > 0 && box.height > 0) {
-                    console.log(`[Tab ${tabId}] Executing real click at: ${Math.round(box.x)}, ${Math.round(box.y)}`);
-                    
-                    // 3. Perform a physical mouse click on the coordinates
-                    await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { 
-                        delay: hWait(100, 300),
-                        button: 'left'
-                    });
+            if (actionDice < 0.4) {
+                // ACTION: HUMAN SCROLL
+                console.log(`[Tab ${tabId}] Scrolling...`);
+                await page.mouse.wheel({ deltaY: hWait(300, 700) });
+            } 
+            else if (actionDice < 0.7) {
+                // ACTION: RANDOM ELEMENT CLICK (Friend's Style Finding)
+                const elements = await page.$$('p, h2, img, span, li');
+                if (elements.length > 0) {
+                    const el = elements[hWait(0, elements.length - 1)];
+                    console.log(`[Tab ${tabId}] Random human interaction click.`);
+                    await physicalClick(page, el, profile);
+                }
+            } 
+            else if (actionDice < 0.9) {
+                // ACTION: INTERNAL NAVIGATION (Moving to another post)
+                const internalLink = await page.evaluateHandle(() => {
+                    const links = Array.from(document.querySelectorAll('a[href]'))
+                        .filter(h => h.href && h.href.includes(location.hostname) && h.href !== location.origin + '/' && !h.href.endsWith('#'));
+                    return links[Math.floor(Math.random() * links.length)];
+                }).then(h => h.asElement());
 
-                    // 4. Random reading time after a click
-                    await new Promise(r => setTimeout(r, hWait(5000, 20000)));
+                if (internalLink) {
+                    console.log(`[Tab ${tabId}] Navigating to next internal post.`);
+                    await physicalClick(page, internalLink, profile);
+                    await new Promise(r => setTimeout(r, hWait(5000, 10000)));
                 }
             }
+            else {
+                // ACTION: IDLE READING
+                console.log(`[Tab ${tabId}] Reading pause...`);
+                await new Promise(r => setTimeout(r, hWait(15000, 35000)));
+            }
 
-            // Random scrolling behavior
-            await page.mouse.wheel({ deltaY: hWait(200, 500) });
-            await new Promise(r => setTimeout(r, hWait(3000, 10000)));
+            // Small randomized delay between all "thoughts"
+            await new Promise(r => setTimeout(r, hWait(4000, 12000)));
         }
 
-        // --- PHASE 3: RANDOM BACK ---
+        // --- PHASE 3: RETURN TO X (Random) ---
         if (Math.random() < 0.3) {
+            console.log(`[Tab ${tabId}] Returning to X.`);
             await page.goBack().catch(() => {});
-            await new Promise(r => setTimeout(r, 5000));
+            await new Promise(r => setTimeout(r, 6000));
         }
 
     } catch (err) {
-        console.log(`[Tab ${tabId}] Session Error: ${err.message}`);
+        console.log(`[Tab ${tabId}] Error: ${err.message}`);
     } finally {
         await context.close();
+        console.log(`[Tab ${tabId}] Session finished.`);
     }
 }
 
@@ -105,19 +131,14 @@ async function start() {
     
     const browser = await puppeteer.launch({
         headless: false,
-        args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox',
-            '--disable-blink-features=AutomationControlled',
-            '--window-size=1920,1080'
-        ]
+        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled', '--window-size=1920,1080']
     });
 
-    const numTabs = hWait(2, 6);
+    const numTabs = hWait(2, 5);
     for (let i = 1; i <= numTabs; i++) {
         const profile = PROFILES[hWait(0, PROFILES.length - 1)];
         simulateHumanSession(browser, profile, TARGET, REFERRER, i);
-        await new Promise(r => setTimeout(r, hWait(5000, 15000)));
+        await new Promise(r => setTimeout(r, hWait(8000, 20000))); // Staggered starts
     }
 }
 
