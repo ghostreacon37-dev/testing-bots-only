@@ -27,85 +27,86 @@ async function simulateHumanSession(browser, profile, targetDomain, referrer, ta
     }, profile);
 
     try {
-        // --- PHASE 1: X.COM (Keep as is) ---
-        console.log(`[Tab ${tabId}] Going to X...`);
+        // --- PHASE 1: X.COM ---
+        console.log(`[Tab ${tabId}] Moving to X...`);
         await page.goto(referrer, { waitUntil: 'networkidle2', timeout: 90000 });
         await new Promise(r => setTimeout(r, hWait(60000, 120000))); 
         await page.keyboard.press('Escape');
 
-        const link = await page.evaluateHandle((domain) => {
-            return Array.from(document.querySelectorAll('a')).find(a => a.innerText.toLowerCase().includes(domain.toLowerCase()) || a.href.toLowerCase().includes(domain.toLowerCase()));
+        const xLink = await page.evaluateHandle((domain) => {
+            return Array.from(document.querySelectorAll('a')).find(a => a.href && a.href.includes(domain));
         }, targetDomain).then(h => h.asElement());
 
-        if (link) {
-            await link.scrollIntoView();
-            const box = await link.boundingBox();
+        if (xLink) {
+            await xLink.scrollIntoView();
+            const box = await xLink.boundingBox();
             if (box) {
                 await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { delay: hWait(150, 400) });
                 await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }).catch(() => {});
             }
         }
 
-        // --- PHASE 2: LEARNWITHBLOG.XYZ (UPGRADED HUMAN BEHAVIOR) ---
-        console.log(`[Tab ${tabId}] Entered Blog. Starting real human sequence...`);
+        // --- PHASE 2: LEARNWITHBLOG.XYZ (THE FIX) ---
+        console.log(`[Tab ${tabId}] Arrived at Blog. Starting Internal Hunt...`);
         
-        // 1. Initial "Scanning" Wait (Simulates reading the header/hero section)
-        await new Promise(r => setTimeout(r, hWait(8000, 25000)));
+        // Wait for body to be ready
+        await page.waitForSelector('body');
+        await new Promise(r => setTimeout(r, hWait(10000, 20000)));
 
-        // 2. FIND INTERNAL POST (Friend's logic)
+        // NEW: Scroll down first to load "Lazy Loaded" links
+        await page.mouse.wheel({ deltaY: 1200 });
+        await new Promise(r => setTimeout(r, 3000));
+
+        // NEW: More aggressive internal link finder
         const internalPost = await page.evaluateHandle(() => {
-            const anchors = Array.from(document.querySelectorAll('a[href]'));
-            const internalLinks = anchors.filter(a => 
-                a.href.includes(window.location.hostname) && 
-                a.href !== window.location.origin + '/' && 
-                !a.href.includes('#')
-            );
-            return internalLinks[Math.floor(Math.random() * internalLinks.length)];
+            const currentHost = window.location.hostname;
+            // Get all links that go to the same site but aren't just the homepage "/" or "#"
+            const allLinks = Array.from(document.querySelectorAll('a[href]'));
+            const validLinks = allLinks.filter(a => {
+                const href = a.getAttribute('href');
+                return (a.href.includes(currentHost) && 
+                        href !== '/' && 
+                        href !== '#' && 
+                        !href.startsWith('javascript:'));
+            });
+            
+            // Prioritize links that look like articles (usually have more text)
+            validLinks.sort((a, b) => b.innerText.length - a.innerText.length);
+            return validLinks[Math.floor(Math.random() * Math.min(validLinks.length, 5))]; 
         }).then(h => h.asElement());
 
         if (internalPost) {
-            console.log(`[Tab ${tabId}] Found internal post. Executing physical mouse click.`);
+            console.log(`[Tab ${tabId}] Target link found. Moving Mouse...`);
             
-            // Scroll to it naturally
+            // 1. Move mouse to the link location
             await internalPost.evaluate(el => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
-            await new Promise(r => setTimeout(r, hWait(2000, 4000)));
+            await new Promise(r => setTimeout(r, 3000));
 
             const box = await internalPost.boundingBox();
             if (box) {
-                // Physical Mouse Click
-                await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { delay: hWait(100, 300) });
-                await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
+                // 2. Physical Hover + Click
+                await page.mouse.move(box.x + box.width/2, box.y + box.height/2, { steps: 20 });
+                await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { delay: hWait(200, 500) });
+                console.log(`[Tab ${tabId}] CLICKED! Waiting for post to load...`);
+                
+                // Wait for the new page
+                await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {
+                    console.log(`[Tab ${tabId}] Navigation took too long, but click was sent.`);
+                });
             }
+        } else {
+            console.log(`[Tab ${tabId}] FAILED: No internal links detected.`);
         }
 
-        // 3. POST-CLICK RANDOMNESS (Stay on the new page and act human)
-        const sessionEnd = Date.now() + hWait(60000, 300000); // 1 to 5 minutes stay
+        // --- PHASE 3: STAY & ACT HUMAN ---
+        const sessionEnd = Date.now() + hWait(60000, 240000); 
         while (Date.now() < sessionEnd) {
-            // Randomly Scroll
-            await page.mouse.wheel({ deltaY: hWait(200, 600) });
-            
-            // Random "Fidget" Click (30% chance - click a non-link element like text or image)
-            if (Math.random() < 0.3) {
-                const elements = await page.$$('p, h1, h2, img');
-                if (elements.length > 0) {
-                    const el = elements[hWait(0, elements.length - 1)];
-                    const b = await el.boundingBox();
-                    if (b) await page.mouse.click(b.x + b.width/2, b.y + b.height/2, { delay: hWait(100, 200) });
-                }
-            }
-
-            await new Promise(r => setTimeout(r, hWait(10000, 25000)));
-        }
-
-        // --- PHASE 3: RANDOM BACK ---
-        if (Math.random() < 0.3) {
-            console.log(`[Tab ${tabId}] Going back to X.`);
-            await page.goBack().catch(() => {});
-            await new Promise(r => setTimeout(r, 5000));
+            await page.mouse.wheel({ deltaY: hWait(300, 700) });
+            await new Promise(r => setTimeout(r, hWait(10000, 20000)));
         }
 
     } catch (err) {
-        console.log(`[Tab ${tabId}] Session Error: ${err.message}`);
+        console.log(`[Tab ${tabId}] Error: ${err.message}`);
     } finally {
         await context.close();
     }
@@ -117,19 +118,14 @@ async function start() {
     
     const browser = await puppeteer.launch({
         headless: false,
-        args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox',
-            '--disable-blink-features=AutomationControlled',
-            '--window-size=1920,1080'
-        ]
+        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled', '--window-size=1920,1080']
     });
 
-    const numTabs = hWait(2, 6);
+    const numTabs = hWait(2, 4);
     for (let i = 1; i <= numTabs; i++) {
         const profile = PROFILES[hWait(0, PROFILES.length - 1)];
         simulateHumanSession(browser, profile, TARGET, REFERRER, i);
-        await new Promise(r => setTimeout(r, hWait(8000, 20000)));
+        await new Promise(r => setTimeout(r, hWait(10000, 20000)));
     }
 }
 
