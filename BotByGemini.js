@@ -2,7 +2,6 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
-// 1. DIVERSIFIED BROWSER PROFILES (Chrome, Edge, Safari, Android)
 const PROFILES = [
     { name: 'Chrome-Windows', vendor: 'Google Inc.', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'Win32', cores: 8, mem: 16, w: 1920, h: 1080, mobile: false },
     { name: 'Edge-Windows', vendor: 'Microsoft', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0', platform: 'Win32', cores: 12, mem: 32, w: 2560, h: 1440, mobile: false },
@@ -11,11 +10,6 @@ const PROFILES = [
 ];
 
 const hWait = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
-
-async function humanMove(page, targetPoint) {
-    const steps = hWait(10, 20);
-    await page.mouse.move(targetPoint.x, targetPoint.y, { steps: steps });
-}
 
 async function simulateHumanSession(browser, profile, targetDomain, referrer, tabId) {
     const context = await browser.createBrowserContext();
@@ -33,8 +27,8 @@ async function simulateHumanSession(browser, profile, targetDomain, referrer, ta
     }, profile);
 
     try {
-        // --- PHASE 1: X.COM (Untouched Redirection) ---
-        console.log(`[Tab ${tabId}] Starting session as ${profile.name}`);
+        // --- PHASE 1: X.COM (Untouched) ---
+        console.log(`[Tab ${tabId}] Going to X...`);
         await page.goto(referrer, { waitUntil: 'networkidle2', timeout: 90000 });
         await new Promise(r => setTimeout(r, hWait(60000, 120000))); 
         await page.keyboard.press('Escape');
@@ -44,73 +38,62 @@ async function simulateHumanSession(browser, profile, targetDomain, referrer, ta
         }, targetDomain).then(h => h.asElement());
 
         if (link) {
+            await link.scrollIntoView();
             const box = await link.boundingBox();
             if (box) {
-                if (!profile.mobile) await humanMove(page, { x: box.x + box.width/2, y: box.y + box.height/2 });
                 await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { delay: hWait(150, 400) });
                 await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }).catch(() => {});
             }
         }
 
-        // --- PHASE 2: LEARNWITHBLOG.XYZ (Adaptive Engagement) ---
-        const loadWait = hWait(5000, 30000); 
-        await new Promise(r => setTimeout(r, loadWait));
+        // --- PHASE 2: LEARNWITHBLOG.XYZ (FIXED CLICKING ENGINE) ---
+        console.log(`[Tab ${tabId}] Entered Target Site. Waiting for content...`);
+        await new Promise(r => setTimeout(r, hWait(5000, 37000)));
 
         const sessionEnd = Date.now() + hWait(10000, 570000); 
 
         while (Date.now() < sessionEnd) {
-            const dice = Math.random();
+            // Force browser to "wake up" and find elements
+            const elements = await page.$$('a, button, h1, h2, p, img');
+            
+            if (elements.length > 0) {
+                // Pick a random element
+                const target = elements[hWait(0, elements.length - 1)];
+                
+                // 1. Scroll it into view (crucial for clicking)
+                await target.evaluate(el => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+                await new Promise(r => setTimeout(r, hWait(2000, 5000)));
 
-            if (dice < 0.4) {
-                // ADAPTIVE SCROLLING: Slower for text, faster for gaps
-                const scrollDepth = hWait(150, 500);
-                console.log(`[Tab ${tabId}] Reading scroll...`);
-                // Smooth scroll emulation
-                for (let i = 0; i < 5; i++) {
-                    await page.mouse.wheel({ deltaY: scrollDepth / 5 });
-                    await new Promise(r => setTimeout(r, hWait(100, 300))); 
-                }
-            } 
-            else if (dice < 0.8) {
-                // PHYSICAL CLICK: Targets real elements
-                const elements = await page.$$('a, button, p, h2, img, span, li');
-                if (elements.length > 0) {
-                    const el = elements[hWait(0, elements.length - 1)];
-                    const b = await el.boundingBox();
+                // 2. Get fresh coordinates after scrolling
+                const box = await target.boundingBox();
+                
+                if (box && box.width > 0 && box.height > 0) {
+                    console.log(`[Tab ${tabId}] Executing real click at: ${Math.round(box.x)}, ${Math.round(box.y)}`);
                     
-                    if (b && b.width > 2 && b.height > 2) {
-                        // Scroll element into view first (like a human focusing)
-                        await page.evaluate((y) => window.scrollBy(0, y - 300), b.y);
-                        await new Promise(r => setTimeout(r, hWait(1000, 3000)));
+                    // 3. Perform a physical mouse click on the coordinates
+                    await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { 
+                        delay: hWait(100, 300),
+                        button: 'left'
+                    });
 
-                        console.log(`[Tab ${tabId}] Engaging with content at ${Math.round(b.x)}, ${Math.round(b.y)}`);
-                        if (!profile.mobile) await humanMove(page, { x: b.x + b.width/2, y: b.y + b.height/2 });
-                        await page.mouse.click(b.x + b.width/2, b.y + b.height/2, { delay: hWait(100, 350) });
-                        
-                        // Stay on the new content/position for a bit
-                        await new Promise(r => setTimeout(r, hWait(5000, 15000)));
-                    }
+                    // 4. Random reading time after a click
+                    await new Promise(r => setTimeout(r, hWait(5000, 20000)));
                 }
-            } 
-            else {
-                // IDLE/FIDGET: Random mouse movements or long pauses
-                if (!profile.mobile) {
-                    await humanMove(page, { x: hWait(100, 800), y: hWait(100, 800) });
-                }
-                await new Promise(r => setTimeout(r, hWait(10000, 30000)));
             }
-            await new Promise(r => setTimeout(r, hWait(3000, 8000)));
+
+            // Random scrolling behavior
+            await page.mouse.wheel({ deltaY: hWait(200, 500) });
+            await new Promise(r => setTimeout(r, hWait(3000, 10000)));
         }
 
-        // --- PHASE 3: RANDOM RETURN ---
+        // --- PHASE 3: RANDOM BACK ---
         if (Math.random() < 0.3) {
-            console.log(`[Tab ${tabId}] Returning to X.`);
             await page.goBack().catch(() => {});
-            await new Promise(r => setTimeout(r, 8000));
+            await new Promise(r => setTimeout(r, 5000));
         }
 
     } catch (err) {
-        console.log(`[Tab ${tabId}] Log: ${err.message}`);
+        console.log(`[Tab ${tabId}] Session Error: ${err.message}`);
     } finally {
         await context.close();
     }
@@ -122,18 +105,20 @@ async function start() {
     
     const browser = await puppeteer.launch({
         headless: false,
-        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled']
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-blink-features=AutomationControlled',
+            '--window-size=1920,1080'
+        ]
     });
 
-    const numTabs = hWait(2, 9);
-    const active = [];
+    const numTabs = hWait(2, 6);
     for (let i = 1; i <= numTabs; i++) {
         const profile = PROFILES[hWait(0, PROFILES.length - 1)];
-        await new Promise(r => setTimeout(r, hWait(2000, 15000)));
-        active.push(simulateHumanSession(browser, profile, TARGET, REFERRER, i));
+        simulateHumanSession(browser, profile, TARGET, REFERRER, i);
+        await new Promise(r => setTimeout(r, hWait(5000, 15000)));
     }
-    await Promise.all(active);
-    await browser.close();
 }
 
 start();
