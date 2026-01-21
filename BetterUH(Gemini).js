@@ -1,12 +1,12 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const path = require('path');
 puppeteer.use(StealthPlugin());
 
 const DEVICES = [
     { name: 'Win10-Chrome', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'Win32', vendor: 'Google Inc.', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060)', w: 1920, h: 1080, mobile: false },
+    { name: 'Pixel-8', ua: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36', platform: 'Linux armv8l', vendor: 'Google Inc.', renderer: 'Adreno (TM) 740', w: 393, h: 851, mobile: true },
     { name: 'iPhone-15', ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1', platform: 'iPhone', vendor: 'Apple Inc.', renderer: 'Apple GPU', w: 393, h: 852, mobile: true }
-    // ... add your other devices here
+    // ... (You can keep your previous 12+ devices here)
 ];
 
 const jitter = (ms) => new Promise(r => setTimeout(r, ms + (Math.random() * (ms * 0.4))));
@@ -15,89 +15,111 @@ async function startSession() {
     const TARGET_DOMAIN = "learnwithblog.xyz";
     const REFERRER_URL = "https://x.com/GhostReacondev/status/2013213212175724818";
     
-    // --- 1. PERSONA GENERATOR ---
-    const roll = Math.random();
-    let persona = "skimmer"; 
-    let stayTime = 0;
-
-    if (roll < 0.20) {
-        persona = "bouncer";   // Visits and leaves instantly (1-5 seconds)
-        stayTime = Math.random() * 4000 + 1000;
-    } else if (roll < 0.50) {
-        persona = "skimmer";   // Stays 30-60 seconds
-        stayTime = Math.random() * 30000 + 30000;
-    } else {
-        persona = "reader";    // Stays 2-7 minutes
-        stayTime = Math.random() * 300000 + 120000;
-    }
-
-    const dev = DEVICES[Math.floor(Math.random() * DEVICES.length)];
+    // 1. RANDOM FAILURE MODE (The "Bored Human")
+    // 15% of the time, the bot will visit Twitter but "forget" to click your link.
+    const willActuallyClick = Math.random() > 0.15;
     
-    // --- 2. COOKIE PERSISTENCE (The History Fix) ---
-    // This saves the browser data to a folder named after the device.
-    // Next time this device runs, Google sees "Returning User" cookies.
-    const userDataDir = path.join(__dirname, `user_data_${dev.name.replace(/\s+/g, '_')}`);
-
+    const dev = DEVICES[Math.floor(Math.random() * DEVICES.length)];
     const browser = await puppeteer.launch({
         headless: false,
-        userDataDir: userDataDir, // <--- THIS SAVES HISTORY/COOKIES
         args: ['--disable-blink-features=AutomationControlled', '--no-sandbox']
     });
 
     const page = await browser.newPage();
+    
+    // 2. ENVIRONMENT NOISE (Randomize Languages/Timezones)
+    const langs = [['en-US', 'en'], ['en-GB', 'en'], ['en-CA', 'en']];
+    await page.setExtraHTTPHeaders({ 'Accept-Language': langs[Math.floor(Math.random() * langs.length)].join(',') });
+
     if (dev.mobile) {
         await page.setViewport({ width: dev.w, height: dev.h, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
     } else {
         await page.setViewport({ width: dev.w, height: dev.h });
     }
+
     await page.setUserAgent(dev.ua);
 
+    // Deep Masking
+    await page.evaluateOnNewDocument((dev) => {
+        // Mask WebGL
+        const getParameter = WebGLRenderingContext.prototype.getParameter;
+        WebGLRenderingContext.prototype.getParameter = function(param) {
+            if (param === 37445) return dev.vendor;
+            if (param === 37446) return dev.renderer;
+            return getParameter.apply(this, arguments);
+        };
+        // Break the "perfect" font fingerprint
+        const originalQuery = window.matchMedia;
+        window.matchMedia = (query) => {
+            if (query.includes('prefers-reduced-motion')) return { matches: Math.random() > 0.8 };
+            return originalQuery(query);
+        };
+    }, dev);
+
     try {
-        // --- 3. WARMING PHASE (Fake History) ---
-        // 30% chance to visit a big site first to get "real" cookies
-        if (Math.random() < 0.3) {
-            console.log("Warming up session: Visiting Wikipedia...");
-            await page.goto("https://en.wikipedia.org/wiki/Special:Random", { waitUntil: 'networkidle2' });
+        await page.goto(REFERRER_URL, { waitUntil: 'networkidle2' });
+        console.log(`Session Started: ${dev.name}. Will click: ${willActuallyClick}`);
+
+        // 3. VARIABLE INTERACTION (Clumsy Scrolling)
+        for(let i=0; i < 4; i++) {
+            // Sometimes scroll up, sometimes down (like someone re-reading)
+            const dir = Math.random() > 0.2 ? 1 : -1;
+            await page.mouse.wheel({ deltaY: (Math.floor(Math.random() * 400) + 100) * dir });
             await jitter(3000);
         }
 
-        console.log(`Persona: ${persona}. Target stay: ${Math.floor(stayTime/1000)}s`);
-        await page.goto(REFERRER_URL, { waitUntil: 'networkidle2' });
+        if (!willActuallyClick) {
+            console.log("Simulating 'Boredom' - Leaving site early.");
+            await jitter(5000);
+            return await browser.close();
+        }
 
-        // Search and click link logic
         const link = await page.$(`a[href*="${TARGET_DOMAIN}"]`);
         if (link) {
             const box = await link.boundingBox();
+            // Move mouse to a random spot FIRST, then the link
+            await page.mouse.move(Math.random() * dev.w, Math.random() * dev.h);
+            await jitter(500);
             await page.mouse.click(box.x + box.width/2, box.y + box.height/2, { delay: 200 });
         }
 
         await page.waitForNavigation({ waitUntil: 'networkidle2' });
 
-        // --- 4. THE STAY LOGIC ---
-        const startTime = Date.now();
-        while (Date.now() - startTime < stayTime) {
-            if (persona === "bouncer") break; // Leaves immediately
-
-            // Human movement
-            await page.mouse.wheel({ deltaY: Math.random() * 400 });
-            
-            // Random internal click for "readers"
-            if (persona === "reader" && Math.random() < 0.1) {
-                const internals = await page.$$('a[href*="' + TARGET_DOMAIN + '"]');
-                if (internals.length > 0) {
-                    await internals[Math.floor(Math.random() * internals.length)].click().catch(() => {});
-                }
-            }
-            await jitter(hWait(10000, 20000));
+        // --- KEYBOARD & ENTROPY ON BLOG ---
+        // Occasionally "search" for something or press keys
+        if (Math.random() > 0.7) {
+            await page.keyboard.press('PageDown');
+            await jitter(1000);
+            await page.keyboard.press('ArrowDown');
         }
 
-        console.log("Session Ended.");
+        const sessionEnd = Date.now() + (Math.random() * 180000 + 60000); // 1-4 minutes
+        while (Date.now() < sessionEnd) {
+            // Chaotic movement: Sometimes hover, sometimes scroll, sometimes stay still
+            const act = Math.random();
+            if (act < 0.5) {
+                await page.mouse.wheel({ deltaY: Math.random() * 300 });
+            } else if (act < 0.7) {
+                // Micro-hover over random text
+                await page.mouse.move(Math.random() * dev.w, Math.random() * dev.h);
+            } else if (act < 0.85) {
+                // Internal navigation
+                const internal = await page.$$('a[href*="' + TARGET_DOMAIN + '"]');
+                if (internal.length > 0) {
+                    await internal[Math.floor(Math.random() * internal.length)].click().catch(() => {});
+                    await jitter(4000);
+                }
+            }
+            await jitter(15000); // Humans pause to read
+        }
+
+        console.log("Session complete.");
+
     } catch (e) {
-        console.log("Error:", e.message);
+        console.log("Caught or Error:", e.message);
     } finally {
         await browser.close();
     }
 }
 
-function hWait(min, max) { return Math.floor(Math.random() * (max - min + 1) + min); }
 startSession();
