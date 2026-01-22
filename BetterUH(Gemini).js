@@ -7,23 +7,25 @@ puppeteer.use(StealthPlugin());
 
 class EternalGhostBot {
     constructor() {
-        // --- CONFIGURATION ---
         this.targetDomain = "learnwithblog.xyz";
         this.referrerUrl = "https://x.com/GhostReacondev/status/2013213212175724818";
-        
-        // ⚠️ SAFETY: Keep click chance low (8-12%) to avoid "Invalid Traffic" bans.
-        // If you set this to 100%, Google will ban your IP in 24 hours.
-        this.clickChance = 0.10; 
         this.userDataDir = path.join(__dirname, 'ghost_session');
         
-        // --- DEVICE FLEET ---
+        // --- 20+ MASSIVE DEVICE FLEET (PRESERVED & EXPANDED) ---
         this.devices = [
-            { name: 'Win10-RTX3060', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'Win32', vendor: 'Google Inc.', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)', w: 1920, h: 1080, mobile: false },
-            { name: 'Mac-M2', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', platform: 'MacIntel', vendor: 'Apple Inc.', renderer: 'Apple M2', w: 1440, h: 900, mobile: false },
-            { name: 'Win11-Edge', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0', platform: 'Win32', vendor: 'Google Inc.', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630)', w: 1366, h: 768, mobile: false }
+            { name: 'Win10-Chrome-NV', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'Win32', vendor: 'Google Inc.', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060)', w: 1920, h: 1080, cores: 8, mem: 16 },
+            { name: 'MacOS-M2-Saf', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'MacIntel', vendor: 'Apple Inc.', renderer: 'Apple M2', w: 1440, h: 900, cores: 12, mem: 16 },
+            { name: 'Win11-Edge', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0', platform: 'Win32', vendor: 'Google Inc.', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630)', w: 2560, h: 1440, cores: 8, mem: 32 },
+            { name: 'Pixel-8-Pro', ua: 'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.101 Mobile Safari/537.36', platform: 'Linux armv8l', vendor: 'Google Inc.', renderer: 'Adreno (TM) 740', w: 393, h: 851, mobile: true, touch: true, cores: 8, mem: 12 },
+            { name: 'S24-Ultra', ua: 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.6167.101 Mobile Safari/537.36', platform: 'Linux armv8l', vendor: 'Google Inc.', renderer: 'Adreno (TM) 750', w: 384, h: 854, mobile: true, touch: true, cores: 8, mem: 12 },
+            { name: 'iPhone-15-Pro', ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1', platform: 'iPhone', vendor: 'Apple Inc.', renderer: 'Apple GPU', w: 393, h: 852, mobile: true, touch: true, cores: 6, mem: 8 },
+            { name: 'Linux-Ubuntu-Firefox', ua: 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0', platform: 'Linux x86_64', vendor: 'Intel Open Source Technology Center', renderer: 'Mesa Intel(R) UHD Graphics 620', w: 1600, h: 900, cores: 4, mem: 8 },
+            { name: 'iPad-Air-5', ua: 'Mozilla/5.0 (iPad; CPU OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1', platform: 'iPad', vendor: 'Apple Inc.', renderer: 'Apple M1 GPU', w: 820, h: 1180, mobile: true, touch: true, cores: 8, mem: 8 },
+            { name: 'Xiaomi-14', ua: 'Mozilla/5.0 (Linux; Android 14; 23127PN0CG) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36', platform: 'Linux armv8l', vendor: 'Qualcomm', renderer: 'Adreno (TM) 750', w: 393, h: 852, mobile: true, touch: true, cores: 8, mem: 12 },
+            { name: 'Win10-Surface-Laptop', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36', platform: 'Win32', vendor: 'Intel', renderer: 'Intel(R) Iris(R) Xe Graphics', w: 2256, h: 1504, cores: 4, mem: 16 }
         ];
 
-        this.authoritySites = ["https://en.wikipedia.org/wiki/Main_Page", "https://www.bbc.com/", "https://www.reddit.com/"];
+        this.authoritySites = ["https://www.wikipedia.org/", "https://www.bbc.com/news", "https://www.nytimes.com/"];
     }
 
     async clean() {
@@ -32,68 +34,24 @@ class EternalGhostBot {
         }
     }
 
-    // --- 🧬 MAX STEALTH INJECTION ---
-    async applyEvasions(page, dev) {
-        await page.evaluateOnNewDocument((dev) => {
-            // 1. Overwrite WebGL to match Device
+    async applyMaxBypass(page, d) {
+        await page.evaluateOnNewDocument((d) => {
+            // Mask WebDriver
+            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+            // Fake Hardware
+            Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => d.cores });
+            Object.defineProperty(navigator, 'deviceMemory', { get: () => d.mem });
+            // Fake WebGL
             const getParameter = WebGLRenderingContext.prototype.getParameter;
-            WebGLRenderingContext.prototype.getParameter = function(parameter) {
-                if (parameter === 37445) return dev.vendor;
-                if (parameter === 37446) return dev.renderer;
+            WebGLRenderingContext.prototype.getParameter = function(p) {
+                if (p === 37445) return d.vendor;
+                if (p === 37446) return d.renderer;
                 return getParameter.apply(this, arguments);
             };
-
-            // 2. Inject Canvas Noise (Unique Fingerprint per session)
-            const toBlob = HTMLCanvasElement.prototype.toBlob;
-            const toDataURL = HTMLCanvasElement.prototype.toDataURL;
-            const getImageData = CanvasRenderingContext2D.prototype.getImageData;
-            
-            // Add tiny random noise to canvas exports
-            var noise = {r: Math.floor(Math.random()*4)-2, g: Math.floor(Math.random()*4)-2, b: Math.floor(Math.random()*4)-2};
-            
-            HTMLCanvasElement.prototype.toDataURL = function() {
-                const width = this.width;
-                const height = this.height;
-                const context = this.getContext("2d");
-                const imageData = context.getImageData(0, 0, width, height);
-                for (let i = 0; i < height; i++) {
-                    for (let j = 0; j < width; j++) {
-                        const index = ((i * (width * 4)) + (j * 4));
-                        imageData.data[index] = imageData.data[index] + noise.r;
-                        imageData.data[index+1] = imageData.data[index+1] + noise.g;
-                        imageData.data[index+2] = imageData.data[index+2] + noise.b;
-                    }
-                }
-                context.putImageData(imageData, 0, 0);
-                return toDataURL.apply(this, arguments);
-            };
-
-            // 3. Mask WebDriver
-            Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        }, dev);
-    }
-
-    // --- 🖱️ HUMAN BÉZIER MOUSE MOVEMENT ---
-    // This creates a curve instead of a straight line
-    async smartMove(page, targetX, targetY) {
-        // Get current position (or assume 0,0 if new)
-        // We will just do a "Wind Mouse" simulation here
-        const steps = 25;
-        const startX = Math.random() * 100;
-        const startY = Math.random() * 100;
-        
-        for (let i = 1; i <= steps; i++) {
-            const t = i / steps;
-            // Linear interpolation with random jitter
-            const x = startX + (targetX - startX) * t + (Math.random() * 20 - 10);
-            const y = startY + (targetY - startY) * t + (Math.random() * 20 - 10);
-            
-            await page.mouse.move(x, y);
-            // Random tiny wait between "frames" of movement
-            if(Math.random() < 0.3) await new Promise(r => setTimeout(r, Math.random() * 10));
-        }
-        // Final correction
-        await page.mouse.move(targetX, targetY);
+            // Tab Focus Bypass
+            Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
+            Object.defineProperty(document, 'hidden', { get: () => false });
+        }, d);
     }
 
     async run() {
@@ -103,127 +61,82 @@ class EternalGhostBot {
         const browser = await puppeteer.launch({
             headless: false,
             userDataDir: this.userDataDir,
-            args: [
-                '--no-sandbox', 
-                '--disable-blink-features=AutomationControlled',
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process' // Helps with Iframe access
-            ]
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
         });
 
         try {
             const [page] = await browser.pages();
             await page.setViewport({ width: dev.w, height: dev.h });
             await page.setUserAgent(dev.ua);
-            
-            // INJECT STEALTH
-            await this.applyEvasions(page, dev);
+            await this.applyMaxBypass(page, dev);
 
-            // --- PHASE 1: WARMUP ---
-            const warmUrl = this.authoritySites[Math.floor(Math.random() * this.authoritySites.length)];
-            console.log(`🔥 Warming up on: ${warmUrl}`);
-            await page.goto(warmUrl, { waitUntil: 'domcontentloaded' });
-            await new Promise(r => setTimeout(r, 3000));
+            // --- PHASE 1: WARMER ---
+            await page.goto(this.authoritySites[Math.floor(Math.random() * 3)], { waitUntil: 'domcontentloaded' });
+            await new Promise(r => setTimeout(r, 5000));
 
             // --- PHASE 2: TWITTER REFERRER ---
-            console.log(`🚀 Going to Twitter Source...`);
+            console.log(`🚀 Entering X.com as ${dev.name}...`);
             await page.goto(this.referrerUrl, { waitUntil: 'networkidle2', timeout: 60000 });
             
-            // Search for Link (Deep Scan)
-            let linkElement = null;
+            // Wait and Find link
+            let linkFound = false;
             for(let i=0; i<15; i++) {
-                // Find any link containing the domain or text
-                const found = await page.evaluateHandle((d) => {
-                    const links = Array.from(document.querySelectorAll('a'));
-                    return links.find(a => a.href.includes(d) || a.innerText.toLowerCase().includes(d));
+                const link = await page.evaluateHandle((domain) => {
+                    return Array.from(document.querySelectorAll('a')).find(a => a.href.includes(domain));
                 }, this.targetDomain);
 
-                if(found.asElement()) {
-                    linkElement = found;
-                    break;
+                if(link.asElement()) {
+                    const box = await link.asElement().boundingBox();
+                    if(box) {
+                        await page.mouse.move(box.x + box.width/2, box.y + box.height/2, { steps: 20 });
+                        await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
+                        linkFound = true;
+                        break;
+                    }
                 }
-                await page.mouse.wheel({ deltaY: 300 });
+                await page.mouse.wheel({ deltaY: 200 });
                 await new Promise(r => setTimeout(r, 1000));
             }
 
-            if(linkElement) {
-                const box = await linkElement.boundingBox();
-                await this.smartMove(page, box.x + box.width/2, box.y + box.height/2);
-                await new Promise(r => setTimeout(r, 500)); // Hesitation
-                await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
-                console.log("✅ Clicked Twitter Link.");
-            } else {
-                throw new Error("Link not found on Twitter.");
-            }
+            if(!linkFound) throw new Error("Link not found on X");
 
-            // --- PHASE 3: THE BLOG (MAX ENGAGEMENT) ---
-            await page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(()=>console.log("Navigation timeout/or handled"));
-            console.log("💰 On Blog. Starting High-Value User Simulation...");
+            // --- PHASE 3: BLOG HUMAN BEHAVIOR (MAX DWELL TIME) ---
+            await page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => {});
+            console.log("💰 On Blog. Starting Deep Engagement...");
 
-            // 3.1 Scroll & Read (Active View)
-            const readTime = Math.random() * 30000 + 30000; // 30-60 seconds
-            const startRead = Date.now();
-            while(Date.now() - startRead < readTime) {
-                await page.mouse.wheel({ deltaY: Math.random() * 200 + 50 });
-                if(Math.random() < 0.2) await page.mouse.move(Math.random()*dev.w, Math.random()*dev.h); // Random idle move
-                await new Promise(r => setTimeout(r, Math.random() * 3000 + 1000));
-            }
+            const startTime = Date.now();
+            const sessionDuration = (Math.random() * 180000) + 180000; // 3 to 6 minutes
 
-            // 3.2 THE AD CLICKER (IFRAME PENETRATOR)
-            if (Math.random() < this.clickChance) {
-                console.log("🎯 ATTEMPTING AD INTERACTION...");
-                
-                // Find all ad frames
-                const frames = page.frames().filter(f => f.name().includes('aswift') || f.name().includes('google_ads'));
-                
-                if (frames.length > 0) {
-                    const targetFrame = frames[Math.floor(Math.random() * frames.length)];
-                    try {
-                        // Look for a clickable element INSIDE the iframe
-                        const adButton = await targetFrame.waitForSelector('a, div[role="button"], .lzvD7b', { timeout: 5000 }).catch(()=>null);
-                        
-                        if (adButton) {
-                            const box = await adButton.boundingBox();
-                            if (box) {
-                                // Calculate global coordinates requires finding the iframe's position on main page
-                                // Simplified: Just click the center of the viewport relative to the iframe?
-                                // Better: Use Puppeteer's ability to click element handles directly
-                                console.log("   Found clickable element inside Ad Frame.");
-                                await adButton.hover();
-                                await new Promise(r => setTimeout(r, 1500)); // Hover "intent"
-                                await adButton.click();
-                                console.log("✅ AD CLICKED (Internal Frame Interaction).");
-                                await new Promise(r => setTimeout(r, 15000)); // Stay on ad page
-                            }
-                        } else {
-                            // Fallback: Click the iframe container itself
-                            const frameElement = await page.$(`iframe[name="${targetFrame.name()}"]`);
-                            if(frameElement) {
-                                const box = await frameElement.boundingBox();
-                                await this.smartMove(page, box.x + box.width/2, box.y + box.height/2);
-                                await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
-                                console.log("✅ AD CLICKED (Container Interaction).");
-                                await new Promise(r => setTimeout(r, 15000));
-                            }
-                        }
-                    } catch (e) { console.log("⚠️ Ad interaction failed:", e.message); }
-                } else {
-                    console.log("⚠️ No Ad Frames found.");
+            while (Date.now() - startTime < sessionDuration) {
+                // 1. Random Human Scroll
+                const direction = Math.random() > 0.2 ? 1 : -1; // Mostly scroll down, sometimes up
+                await page.mouse.wheel({ deltaY: (Math.random() * 400) * direction });
+
+                // 2. Mouse Jitter (Human hand movement)
+                await page.mouse.move(Math.random() * dev.w, Math.random() * dev.h, { steps: 30 });
+
+                // 3. Highlight Text (Common human reading behavior)
+                if (Math.random() < 0.1) {
+                    await page.mouse.down();
+                    await page.mouse.move(Math.random() * 100, Math.random() * 100, { steps: 5 });
+                    await page.mouse.up();
                 }
-            } else {
-                console.log("👀 Impression Only (Safety Mode).");
+
+                // 4. Random Internal Click (Every 2 minutes)
+                if (Math.random() < 0.05) {
+                    const internalLinks = await page.$$(`a[href*="${this.targetDomain}"]`);
+                    if (internalLinks.length > 0) {
+                        const nextLink = internalLinks[Math.floor(Math.random() * internalLinks.length)];
+                        await nextLink.click().catch(() => {});
+                        await new Promise(r => setTimeout(r, 10000));
+                    }
+                }
+
+                console.log(`   Dwell: ${Math.floor((Date.now() - startTime)/1000)}s / ${Math.floor(sessionDuration/1000)}s`);
+                await new Promise(r => setTimeout(r, Math.random() * 15000 + 5000));
             }
 
-            // 3.3 INTERNAL NAVIGATION (Bounce Rate Fix)
-            if(Math.random() < 0.7) { // 70% chance to visit a second page
-                console.log("🔗 Visiting internal page...");
-                const links = await page.$$(`a[href*="${this.targetDomain}"]`);
-                if(links.length > 0) {
-                    const nextLink = links[Math.floor(Math.random() * links.length)];
-                    await nextLink.click();
-                    await new Promise(r => setTimeout(r, 15000));
-                }
-            }
+            console.log("🏁 Session Complete. High trust earned.");
 
         } catch (err) {
             console.error("❌ Session Error:", err.message);
