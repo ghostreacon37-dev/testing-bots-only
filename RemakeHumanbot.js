@@ -5,7 +5,7 @@ const fs = require('fs');
 
 puppeteer.use(StealthPlugin());
 
-class EternalGhostBotV18 {
+class EternalGhostBotV19 {
     constructor() {
         this.targetWord = "LearnWithBlog.xyz";
         this.targetDomain = "learnwithblog.xyz";
@@ -43,99 +43,102 @@ class EternalGhostBotV18 {
             await page.setUserAgent(dev.ua);
             await this.applyStealth(page, dev);
 
-            console.log(`🚀 Navigating to Twitter...`);
+            console.log(`🚀 Loading X.com...`);
             await page.goto(this.referrerUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
-            // --- 🛡️ BRUTE FORCE LINK FINDER ---
+            // --- 🛡️ FIXED BRUTE-FORCE LINK FINDER ---
             let clicked = false;
-            for (let attempt = 0; attempt < 15; attempt++) {
-                console.log(`🔍 Attempt ${attempt + 1}: Searching for link...`);
-                
-                const linkHandle = await page.evaluateHandle((domain, text) => {
-                    // Search strategy 1: Text content
-                    const allLinks = Array.from(document.querySelectorAll('a'));
-                    let found = allLinks.find(a => a.innerText.toLowerCase().includes(text.toLowerCase()) || a.href.includes(domain));
-                    
-                    // Search strategy 2: Twitter Cards (sometimes they have no text)
-                    if (!found) {
-                        const card = document.querySelector('[data-testid="card.layoutLarge.detail"]');
-                        if (card) found = card.closest('a');
-                    }
-                    
-                    // Search strategy 3: Shortened t.co links in tweet body
-                    if (!found) {
-                        const tweetText = document.querySelector('[data-testid="tweetText"]');
-                        if (tweetText) found = tweetText.querySelector('a');
-                    }
-                    
-                    return found;
+            for (let i = 0; i < 10; i++) {
+                const link = await page.evaluateHandle((domain, text) => {
+                    // Strategy 1: Find by domain in HREF (Most reliable)
+                    const byHref = Array.from(document.querySelectorAll('a')).find(a => a.href.toLowerCase().includes(domain.toLowerCase()));
+                    if (byHref) return byHref;
+
+                    // Strategy 2: Find by visible text
+                    const byText = Array.from(document.querySelectorAll('a')).find(a => a.innerText.toLowerCase().includes(text.toLowerCase()));
+                    if (byText) return byText;
+
+                    // Strategy 3: Find the Twitter Card Container (The image/box)
+                    const card = document.querySelector('[data-testid="card.wrapper"]');
+                    if (card) return card.closest('a') || card;
+
+                    return null;
                 }, this.targetDomain, this.targetWord);
 
-                const element = linkHandle.asElement();
+                const element = link.asElement();
                 if (element) {
-                    console.log("🎯 TARGET SPOTTED! Clicking...");
-                    const newTabPagePromise = new Promise(resolve => browser.once('targetcreated', t => resolve(t.page())));
+                    console.log("🎯 Link Spied! Moving mouse to click...");
+                    const newTabPagePromise = new Promise(res => browser.once('targetcreated', t => res(t.page())));
                     
                     await element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    await new Promise(r => setTimeout(r, 1500));
+                    await new Promise(r => setTimeout(r, 2000));
                     
-                    // Physical Click
                     const box = await element.boundingBox();
-                    await page.mouse.move(box.x + box.width/2, box.y + box.height/2, { steps: 20 });
-                    await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
-                    
-                    const blogPage = await newTabPagePromise;
-                    if (blogPage) {
-                        await blogPage.bringToFront();
-                        await this.multiPageEngagement(blogPage, dev);
-                        clicked = true;
-                        break;
+                    if (box) {
+                        // Move mouse naturally to the center of the link/card
+                        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 30 });
+                        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+                        
+                        const blogPage = await newTabPagePromise;
+                        if (blogPage) {
+                            await blogPage.bringToFront();
+                            console.log("✅ Blog Loaded. Starting Click Loop (0-7 min)...");
+                            await this.blogEngagementLoop(blogPage, dev);
+                            clicked = true;
+                            break;
+                        }
                     }
                 }
-
-                // If not found, jiggle the scroll to trigger Twitter's lazy load
-                await page.mouse.wheel({ deltaY: (attempt % 2 === 0 ? 400 : -200) });
-                await new Promise(r => setTimeout(r, 2000));
+                // Jiggle scroll to trigger lazy-loading if not found
+                await page.mouse.wheel({ deltaY: (i % 2 === 0 ? 500 : -200) });
+                await new Promise(r => setTimeout(r, 3000));
             }
 
-            if (!clicked) console.log("⚠️ Failed to find link. Check if tweet is loaded.");
-
         } catch (err) {
-            console.error("❌ Error:", err.message);
+            console.error("❌ Session Error:", err.message);
         } finally {
             await browser.close();
         }
     }
 
-    async multiPageEngagement(page, dev) {
-        const totalDuration = Math.floor(Math.random() * 410000) + 10000; // 10s to 7m
-        const sessionEnd = Date.now() + totalDuration;
-        console.log(`💰 Session Started: ${Math.floor(totalDuration/1000)}s`);
+    async blogEngagementLoop(page, dev) {
+        // Range: 0 (actually 10s for safety) to 7 Minutes (420,000ms)
+        const duration = Math.floor(Math.random() * 410000) + 10000;
+        const endTime = Date.now() + duration;
 
-        while (Date.now() < sessionEnd) {
-            const roll = Math.random();
-            if (roll < 0.4) {
-                await page.mouse.wheel({ deltaY: Math.floor(Math.random() * 600) - 200 });
-            } else if (roll < 0.8) {
-                // Human Randomness: Mouse shaking & Text highlighting
-                await page.mouse.move(Math.random() * dev.w, Math.random() * dev.h, { steps: 50 });
-                if (Math.random() > 0.5) {
-                    await page.mouse.down();
-                    await page.mouse.move(Math.random() * 100, 10, { relative: true });
-                    await page.mouse.up();
+        while (Date.now() < endTime) {
+            const action = Math.random();
+
+            if (action < 0.4) {
+                // Human Scrolling
+                await page.mouse.wheel({ deltaY: Math.floor(Math.random() * 800) - 300 });
+                console.log("  - Scrolling...");
+            } else if (action < 0.7) {
+                // Randomly Click something on your blog (IMPRESSION GENERATOR)
+                const links = await page.$$('a'); 
+                if (links.length > 0) {
+                    const randomLink = links[Math.floor(Math.random() * links.length)];
+                    const box = await randomLink.boundingBox();
+                    if (box && box.y > 0 && box.y < dev.h) {
+                        console.log("  - Clicking internal link for more ads...");
+                        await randomLink.click().catch(() => {});
+                        await new Promise(r => setTimeout(r, 5000)); // Wait for new page
+                    }
                 }
-            } else {
-                // CLICK MULTIPLIER: Find any internal link to refresh impressions
-                const internal = await page.$$(`a[href*="${this.targetDomain}"]`);
-                if (internal.length > 0) {
-                    const next = internal[Math.floor(Math.random() * internal.length)];
-                    await next.click().catch(() => {});
-                    await new Promise(r => setTimeout(r, 5000));
-                }
+            } else if (action < 0.9) {
+                // Highlight text (Very human behavior)
+                await page.mouse.move(300, 300);
+                await page.mouse.down();
+                await page.mouse.move(500, 310, { steps: 20 });
+                await page.mouse.up();
+                console.log("  - Highlighting text...");
             }
+
+            // Random delay between actions (5 to 15 seconds)
             await new Promise(r => setTimeout(r, Math.random() * 10000 + 5000));
+            console.log(`⏱️ Remaining: ${Math.floor((endTime - Date.now())/1000)}s`);
         }
     }
 }
 
-new EternalGhostBotV18().run();
+new EternalGhostBotV19().run();
