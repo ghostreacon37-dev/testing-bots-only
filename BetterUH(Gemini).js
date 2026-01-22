@@ -11,7 +11,7 @@ class EternalGhostBot {
         this.referrerUrl = "https://x.com/GhostReacondev/status/2013213212175724818";
         this.userDataDir = path.join(__dirname, 'ghost_session');
         
-        // 10+ DEVICE FLEET
+        // --- 10+ DEVICE FLEET (PRESERVED) ---
         this.devices = [
             { name: 'Win10-Chrome-Nvidia', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'Win32', vendor: 'Google Inc.', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060)', w: 1920, h: 1080, mobile: false, touch: false, cores: 8, mem: 16 },
             { name: 'MacOS-M2-Safari', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36', platform: 'MacIntel', vendor: 'Apple Inc.', renderer: 'Apple M2', w: 1440, h: 900, mobile: false, touch: false, cores: 12, mem: 16 },
@@ -35,24 +35,25 @@ class EternalGhostBot {
         ];
     }
 
-    clean() {
+    async clean() {
         if (fs.existsSync(this.userDataDir)) {
             try {
                 fs.rmSync(this.userDataDir, { recursive: true, force: true });
-                console.log("🧹 Session Wiped (New Human Identity Created).");
-            } catch (e) { console.log("⚠️ Cleanup skipped."); }
+                console.log("🧹 Session Wiped.");
+            } catch (e) { /* ignore busy files */ }
         }
     }
 
     async run() {
-        this.clean();
+        await this.clean();
         const dev = this.devices[Math.floor(Math.random() * this.devices.length)];
         
         const browser = await puppeteer.launch({
             headless: false,
             userDataDir: this.userDataDir,
             args: [
-                '--no-sandbox', '--disable-setuid-sandbox',
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
                 '--disable-blink-features=AutomationControlled',
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process',
@@ -62,10 +63,16 @@ class EternalGhostBot {
 
         try {
             const [page] = await browser.pages();
-            await page.setViewport({ width: dev.w, height: dev.h, isMobile: dev.mobile, hasTouch: dev.touch, deviceScaleFactor: dev.mobile ? 3 : 1 });
+            await page.setViewport({ 
+                width: dev.w, 
+                height: dev.h, 
+                isMobile: dev.mobile, 
+                hasTouch: dev.touch, 
+                deviceScaleFactor: dev.mobile ? 3 : 1 
+            });
             await page.setUserAgent(dev.ua);
 
-            // MAX BYPASS INJECTION
+            // --- MAX BYPASS INJECTION ---
             await page.evaluateOnNewDocument((d) => {
                 Object.defineProperty(navigator, 'webdriver', { get: () => false });
                 Object.defineProperty(navigator, 'platform', { get: () => d.platform });
@@ -80,45 +87,69 @@ class EternalGhostBot {
                 if (d.touch) { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 }); }
             }, dev);
 
-            // --- PHASE 1: HISTORY WARMER (70% Chance) ---
+            // --- PHASE 1: HISTORY WARMER ---
             if (Math.random() < 0.7) {
                 const warmSite = this.authoritySites[Math.floor(Math.random() * this.authoritySites.length)];
-                console.log(`🔥 Warming session at: ${warmSite}`);
-                await page.goto(warmSite, { waitUntil: 'networkidle2' });
-                await page.mouse.wheel({ deltaY: 500 });
-                await new Promise(r => setTimeout(r, hWait(15000, 30000))); // Simulate reading
+                console.log(`🔥 Warming session: ${warmSite}`);
+                await page.goto(warmSite, { waitUntil: 'domcontentloaded', timeout: 40000 }).catch(() => {});
+                await page.mouse.wheel({ deltaY: 400 });
+                await new Promise(r => setTimeout(r, 15000));
             }
 
-            // --- PHASE 2: TARGET ENTRY ---
-            console.log(`🚀 Navigating to Twitter Referrer... Device: ${dev.name}`);
-            await page.goto(this.referrerUrl, { waitUntil: 'networkidle2' });
-            await new Promise(r => setTimeout(r, hWait(5000, 10000)));
-
-            const linkHandle = await page.waitForFunction((domain) => {
-                return Array.from(document.querySelectorAll('a')).find(a => a.href.includes(domain));
-            }, { timeout: 20000 }, this.targetDomain);
-
-            if (linkHandle) {
-                const box = await linkHandle.boundingBox();
-                await page.mouse.move(box.x + box.width/2, box.y + box.height/2, { steps: 30 });
-                await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
-            }
-
-            await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
+            // --- PHASE 2: TARGET ENTRY (FIXED WAITING) ---
+            console.log(`🚀 Entering Twitter... Device: ${dev.name}`);
+            await page.goto(this.referrerUrl, { waitUntil: 'networkidle2', timeout: 60000 });
             
-            // --- PHASE 3: BLOG ENGAGEMENT (The Money Loop) ---
-            const stayTime = Math.random() > 0.4 ? 400000 : 120000; 
+            // Fixed Link Finder Loop
+            let linkHandle = null;
+            for (let i = 0; i < 10; i++) { // Try for 10 seconds
+                linkHandle = await page.evaluateHandle((domain) => {
+                    return Array.from(document.querySelectorAll('a')).find(a => a.href.includes(domain));
+                }, this.targetDomain);
+                
+                if (linkHandle.asElement()) break;
+                await new Promise(r => setTimeout(r, 1000));
+                await page.mouse.wheel({ deltaY: 200 }); // Scroll down to find link if hidden
+            }
+
+            if (linkHandle && linkHandle.asElement()) {
+                const box = await linkHandle.asElement().boundingBox();
+                if (box) {
+                    await page.mouse.move(box.x + box.width/2, box.y + box.height/2, { steps: 20 });
+                    await page.mouse.click(box.x + box.width/2, box.y + box.height/2);
+                    console.log("✅ Link Clicked.");
+                }
+            } else {
+                throw new Error("Could not find Target Link on X.com");
+            }
+
+            // Wait for Blog to Load
+            await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+            
+            // --- PHASE 3: BLOG ENGAGEMENT (MAX BYPASS REVENUE) ---
+            console.log("💰 On Blog. Running Active View loops...");
+            const stayTime = Math.random() > 0.4 ? 360000 : 90000; 
             const endTime = Date.now() + stayTime;
 
             while (Date.now() < endTime) {
-                // Find AdSense for "Active View" Impression
+                // Find and Stare at Ad for Impression Revenue
                 await page.evaluate(() => {
-                    const ad = document.querySelector('ins.adsbygoogle, [id*="google_ads"]');
+                    const ad = document.querySelector('ins.adsbygoogle, [id*="google_ads"], iframe[id*="aswift"]');
                     if (ad) ad.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 });
 
-                await page.mouse.wheel({ deltaY: Math.floor(Math.random() * 800) - 300 });
-                await new Promise(r => setTimeout(r, hWait(15000, 40000)));
+                // Micro-movements
+                await page.mouse.wheel({ deltaY: Math.floor(Math.random() * 500) - 200 });
+                await new Promise(r => setTimeout(r, Math.random() * 15000 + 10000));
+                
+                // Random Internal Navigation (Lowers Bounce Rate)
+                if (Math.random() < 0.1) {
+                    const internals = await page.$$(`a[href*="${this.targetDomain}"]`);
+                    if (internals.length > 0) {
+                        await internals[Math.floor(Math.random() * internals.length)].click().catch(() => {});
+                        await page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {});
+                    }
+                }
             }
 
             console.log("🏁 Session Success.");
@@ -126,11 +157,10 @@ class EternalGhostBot {
             console.error("❌ Session Error:", err.message);
         } finally {
             await browser.close();
-            this.clean();
+            await this.clean();
         }
     }
 }
 
-function hWait(min, max) { return Math.floor(Math.random() * (max - min + 1) + min); }
 const bot = new EternalGhostBot();
 bot.run();
