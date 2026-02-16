@@ -52,13 +52,13 @@ class EternalGhostBotV23 {
             // 1. Initial Load
             await page.goto(this.referrerUrl, { 
                 waitUntil: 'networkidle2', 
-                timeout: 60000 
+                timeout: 90000 
             });
 
             // 2. SMART WAIT: Wait for X's main content column to appear
             console.log("⏳ Waiting for X content to render...");
             try {
-                await page.waitForSelector('article, [data-testid="tweet"]', { timeout: 60000 });
+                await page.waitForSelector('article, [data-testid="tweet"]', { timeout: 90000 });
                 console.log("✅ X Content Loaded.");
             } catch (e) {
                 console.log("⚠️ X took too long, attempting link search anyway...");
