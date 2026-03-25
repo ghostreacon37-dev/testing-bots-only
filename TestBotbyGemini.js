@@ -6,7 +6,7 @@ puppeteer.use(StealthPlugin());
 
 class EternalGhostBotV21 {
     constructor() {
-        this.targetWord = "Learnblogs.online";
+        this.targetWord = "learnblogs.online";
         this.targetDomain = "learnblogs.online";
         this.referrerUrl = "https://x.com/GhostReacondev/status/2024921591520641247?s=20";
         
@@ -60,7 +60,7 @@ class EternalGhostBotV21 {
                 console.log(`🔍 Scan ${i+1}: Hunting for link...`);
                 const linkHandle = await page.evaluateHandle((domain) => {
                     const allLinks = Array.from(document.querySelectorAll('a'));
-                    return allLinks.find(a => a.href.includes(domain) || a.innerText.includes("LearnWithBlog"));
+                    return allLinks.find(a => a.href.includes(domain) || a.innerText.includes("learnblogs"));
                 }, this.targetDomain);
 
                 const element = linkHandle.asElement();
